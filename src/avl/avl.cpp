@@ -2,7 +2,6 @@
 #include <cmath>
 #include <QDebug>
 #include <algorithm>
-#include <thread>
 
 namespace AVL {
 // ======================== 成员函数 ====================
@@ -10,7 +9,7 @@ namespace AVL {
 
 AvlNode::AvlNode()
 {
-    rectItem = new QGraphicsRectItem(10, 10, R + R, R);
+    rectItem = new QGraphicsRectItem(10, 10, R + R - 10, R);
     textItem = new QGraphicsSimpleTextItem(rectItem);
     rectItem->setBrush(QColor(100, 255, 100));
     rectItem->setZValue(1);
@@ -24,20 +23,21 @@ AvlNode::~AvlNode() {
     if (rLine) delete rLine;
 }
 
-// 主要是绘图相关更新，这里需要确保先知道孩子节点的坐标信息
+// 主要是绘图相关更新，这里需要确保先知道孩子节点的坐标信息(dfs后续遍历即可)
 void AvlNode::updateThisNode(QPoint new_pos) {
     // pos记录逻辑坐标，加上偏移量为具体渲染坐标
     QPoint pos_offset {-min_x + 100, 0};
     pos = new_pos;
-
-    // 节点方块位置
     rectItem->setPos(pos + pos_offset);
+
     // 设置显示文本内容
     textItem->setPos(QPoint(R - 20, R - 20));
     QString msg = QString::number(key) + " | " + QString::number(cnt);
     textItem->setText(msg);
 
     pos_offset += QPoint{R + 10, R - 10};
+
+    // 如果孩子存在，更新与孩子相连的line坐标
     if (lchild) {
         if (!lLine) {
             lLine = new QGraphicsLineItem();
@@ -45,7 +45,7 @@ void AvlNode::updateThisNode(QPoint new_pos) {
         }
         lLine->setLine(QLine(pos + pos_offset, lchild->pos + pos_offset));
     } else if (lLine) {
-        // 旋转操作导致的叶子节点可能出现指针悬空的情况，释放掉该line节点
+        // 旋转操作导致的叶子节点可能出现line指针悬空的情况，释放掉该line
         delete lLine;
         lLine = nullptr;
     }
@@ -62,7 +62,7 @@ void AvlNode::updateThisNode(QPoint new_pos) {
 
 }
 
-
+// 设置该节点改变颜色，延时一段时间后恢复
 void AvlNode::delay(int duration) {
     if (rectItem) rectItem->setBrush(QColor(255, 100, 100));
     sleep_for(duration * 1000);
@@ -79,6 +79,7 @@ void sleep_for(int ms) {
 //    loop->exec();
 }
 
+// 获取节点，用智能指针包装，并完成初始化
 NodePtr get_node(int key) {
     NodePtr node = std::make_shared<AvlNode>();
     node->key = key;
@@ -90,6 +91,7 @@ NodePtr get_node(int key) {
 // 维护树高
 void pushup(NodePtr node) {
     if (node == nullptr) return;
+    // lambda函数获取树高
     auto get_h = [](NodePtr& tmp) {
         if (tmp == nullptr) return 0;
         else return tmp->height;
@@ -146,7 +148,7 @@ void check_balance(NodePtr& node) {
     }
 }
 
-// 根据key值添加节点
+// 根据key值添加节点(引用传参，便于给空节点赋值时更新父节点的孩子指向; 也便于管理root节点)
 void add(int key, NodePtr& node) {
     if (node == nullptr)
         node = get_node(key);
@@ -193,7 +195,7 @@ void remove(int key, NodePtr& node) {
     check_balance(node);
 }
 
-// dfs，必须先更新儿子，最后更新父节点
+// dfs只能采取后续遍历，必须先更新儿子，最后更新父节点
 void update_by_dfs(NodePtr& node, QPoint pos) {
     if (node == nullptr) return;
 
@@ -213,9 +215,9 @@ void update_by_dfs(NodePtr& node, QPoint pos) {
 
 // 清空原有树，并随机初始化数据
 void init_avl(NodePtr& root) {
-    // 智能指针会递归释放孩子节点
+    // 智能指针会递归释放孩子节点 (add引用传参，当root为空的时候会为其赋值)
     root = nullptr;
-    root->max_h = root->min_x = root->max_x = 0;
+    AvlNode::max_h = AvlNode::min_x = AvlNode::max_x = 0;
     const int N = 20;
     int a[N];
     for (int i = 0; i < N; i++) a[i] = i + 1;
